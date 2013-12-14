@@ -1,7 +1,5 @@
 package com.ww.server.action;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.ww.server.DefaultSocketHandler;
 import com.ww.server.data.Parameters;
 import com.ww.server.data.ResponseMap;
@@ -9,18 +7,17 @@ import com.ww.server.data.ResponseRepresentation;
 import com.ww.server.util.JarUtil;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Enumeration;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import org.eclipse.jetty.util.log.Logger;
+import org.eclipse.jetty.util.log.Slf4jLog;
 import org.eclipse.jetty.websocket.WebSocket;
 
 /**
@@ -29,12 +26,17 @@ import org.eclipse.jetty.websocket.WebSocket;
  */
 public class ActionHandler implements WebSocket.OnTextMessage {
 
+    private static final Logger _log = new Slf4jLog(ActionHandler.class.getName());
+
     protected WebSocket.Connection connection;
 
     @Override
     public void onOpen(WebSocket.Connection connection) {
         this.connection = connection;
         DefaultSocketHandler.getWebSockets().add(this);
+        if (_log.isDebugEnabled()) {
+            _log.debug("Connection open");
+        }
     }
 
     @Override
@@ -57,7 +59,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                         actionId = cls.newInstance().getActionId();
                     }
                     if (actionId == null || actionId.trim().equals("")) {
-                        //_log.warn("Unable to add route for " + cls.getName());
+                        _log.warn("Unable to call " + cls.getName());
                         continue;
                     }
                     // request url and Action annotation should be in lower case!
@@ -72,16 +74,16 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                         ResponseMap response = newInstance.processAction(parameters);
                         // send representation to client
                         connection.sendMessage(ResponseRepresentation.getRepresentation(response));
+                        return;
                     }
                     // else continue search
-
                 } catch (Exception e) {
-                    // searching error
+                    _log.warn("Unable to instance action", e);
                 }
             }
-            // TODO logging exceptions
+            // TODO throw BadRequestException
         } catch (Exception e) {
-            // fetching classes error
+            _log.warn("Actions not found", e);
         }
     }
 
@@ -113,7 +115,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                 JarFile jarFile = JarUtil.getFarFileByFile(source);
                 classes = findActionClassesInJar(jarFile, packageName);
             } catch (IOException ex) {
-                //_log.error("ActionHandler class should be located in not-jar file", ex);
+                _log.warn("ActionHandler class should be located in not-jar file", ex);
             }
         }
         return classes;
@@ -175,9 +177,9 @@ public class ActionHandler implements WebSocket.OnTextMessage {
     private static boolean isActionClass(Class cls) {
         if (cls.isAnnotationPresent(Action.class)) {
             if (Modifier.isAbstract(cls.getModifiers())) {
-                //_log.warn("Class " + cls.getName() + " cannot be abstract.");
+                _log.warn("Class " + cls.getName() + " cannot be abstract.");
             } else if (!BaseAction.class.isAssignableFrom(cls)) {
-                //_log.warn("Class " + cls.getName() + " must be a subtype of the BaseAction class.");
+                _log.warn("Class " + cls.getName() + " must be a subtype of the BaseAction class.");
             } else {
                 return true;
             }

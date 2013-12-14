@@ -2,12 +2,16 @@ package com.ww.server.service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import org.eclipse.jetty.util.log.Logger;
+import org.eclipse.jetty.util.log.Slf4jLog;
 
 /**
  *
  * @author sandy
  */
 public class WWService extends ServiceFactory implements WWFactory {
+
+    private static final Logger _log = new Slf4jLog(WWService.class.getName());
 
     @Override
     public void init() {
@@ -17,11 +21,11 @@ public class WWService extends ServiceFactory implements WWFactory {
                 try {
                     method.invoke(this, new Object[] {});
                 } catch (IllegalAccessException ex) {
-                    //_log.error(ex, ex);
+                    _log.warn(ex.getMessage(), ex);
                 } catch (IllegalArgumentException ex) {
-                    //_log.error(ex, ex);
+                    _log.warn(ex.getMessage(), ex);
                 } catch (InvocationTargetException ex) {
-                    //_log.error(ex, ex);
+                    _log.warn(ex.getMessage(), ex);
                 }
             }
         }

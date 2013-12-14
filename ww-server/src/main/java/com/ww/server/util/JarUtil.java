@@ -168,13 +168,6 @@ public class JarUtil {
         extractFolder(jarFile, jarEntryPath, handler);
     }
 
-    /**
-     * Extract folder from jar to filesystem
-     * @param srcFolderPath Path in format "jar:file:/path/to/jar/file.jar!/path/to/folder/in/jar"
-     *  or file:/path/to/jar/file.jar!/path/to/folder/in/jar" or /path/to/jar/file.jar!/path/to/folder/in/jar"
-     * @param destFolderPath
-     * @throws IOException
-     */
     public static void extractFolder(String srcFolderPath, String destFolderPath)
             throws IOException {
         extractFolder(srcFolderPath, new SaveToFolderHandler(destFolderPath));
