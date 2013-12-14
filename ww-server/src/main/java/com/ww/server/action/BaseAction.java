@@ -2,20 +2,12 @@ package com.ww.server.action;
 
 import com.ww.server.data.Parameters;
 import com.ww.server.data.ResponseMap;
-import com.ww.server.data.ResponseRepresentation;
 
 /**
  *
  * @author sandy
  */
 public class BaseAction {
-
-    protected Parameters parameters;
-
-    public BaseAction(Parameters parameters) {
-        this();
-        this.parameters = parameters;
-    }
 
     public BaseAction() {
     }
