@@ -7,7 +7,8 @@ package com.ww.server.enums;
 public enum TagName {
 
     USER_LOGIN("login"),
-    USER_PASSWORD("pass");
+    USER_PASSWORD("pass"),
+    ACTION("action");
 
 
     private String name;

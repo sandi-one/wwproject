@@ -1,14 +1,22 @@
 package com.ww.server.action;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.ww.server.DefaultSocketHandler;
+import com.ww.server.data.Parameters;
+import com.ww.server.data.ResponseMap;
+import com.ww.server.data.ResponseRepresentation;
 import com.ww.server.util.JarUtil;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.jar.JarEntry;
@@ -23,26 +31,16 @@ public class ActionHandler implements WebSocket.OnTextMessage {
 
     protected WebSocket.Connection connection;
 
-    /**
-     * Open connection action (preProcessAction)
-     *
-     * @param connection
-     */
     @Override
     public void onOpen(WebSocket.Connection connection) {
         this.connection = connection;
         DefaultSocketHandler.getWebSockets().add(this);
     }
 
-    /**
-     * Action (processAction)
-     *
-     * @param data
-     */
     @Override
     public void onMessage(String data) {
-        // TODO implement parsing request
-        String requestUrl = data;
+        Parameters parameters = new Parameters();
+        parameters.setParameters(data);
 
         try {
             String packageName = BaseAction.class.getPackage().getName();
@@ -65,10 +63,15 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                     // request url and Action annotation should be in lower case!
                     actionId = actionId.toLowerCase();
 
-                    if (requestUrl.equals(actionId)) {
+                    if (parameters.getAction().equals(actionId)) {
                         // if action class found then instance action
                         Constructor<? extends BaseAction> constructor = cls.getConstructor();
-                        connection.sendMessage(constructor.newInstance().processAction(requestUrl));
+                        BaseAction newInstance = constructor.newInstance();
+                        newInstance.validate(parameters);
+                        newInstance.preProcessAction();
+                        ResponseMap response = newInstance.processAction(parameters);
+                        // send representation to client
+                        connection.sendMessage(ResponseRepresentation.getRepresentation(response));
                     }
                     // else continue search
 
@@ -82,12 +85,6 @@ public class ActionHandler implements WebSocket.OnTextMessage {
         }
     }
 
-    /**
-     * End of action (postProcessAction)
-     *
-     * @param closeCode
-     * @param message
-     */
     @Override
     public void onClose(int closeCode, String message) {
         connection.close();
@@ -116,7 +113,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                 JarFile jarFile = JarUtil.getFarFileByFile(source);
                 classes = findActionClassesInJar(jarFile, packageName);
             } catch (IOException ex) {
-                //_log.error("XCCApplication class should be located in not-jar file", ex);
+                //_log.error("ActionHandler class should be located in not-jar file", ex);
             }
         }
         return classes;
@@ -180,7 +177,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
             if (Modifier.isAbstract(cls.getModifiers())) {
                 //_log.warn("Class " + cls.getName() + " cannot be abstract.");
             } else if (!BaseAction.class.isAssignableFrom(cls)) {
-                //_log.warn("Class " + cls.getName() + " must be a subtype of the XCCServerResource class.");
+                //_log.warn("Class " + cls.getName() + " must be a subtype of the BaseAction class.");
             } else {
                 return true;
             }

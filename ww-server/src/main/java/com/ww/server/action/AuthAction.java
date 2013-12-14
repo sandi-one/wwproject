@@ -1,5 +1,9 @@
 package com.ww.server.action;
 
+import com.ww.server.data.Parameters;
+import com.ww.server.data.ResponseMap;
+import com.ww.server.enums.TagName;
+
 /**
  *
  * @author sandy
@@ -8,7 +12,12 @@ package com.ww.server.action;
 public class AuthAction extends BaseAction {
 
     @Override
-    public String processAction(String data) {
-        return "fuck yeah baby!";
+    public ResponseMap processAction(Parameters parameters) {
+        ResponseMap response = new ResponseMap();
+
+        response.put(TagName.USER_LOGIN, "bitch");
+        response.put(TagName.USER_PASSWORD, "fuckin");
+
+        return response;
     }
 }
