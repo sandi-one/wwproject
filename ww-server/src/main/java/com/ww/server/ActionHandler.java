@@ -1,9 +1,13 @@
-package com.ww.server.action;
+package com.ww.server;
 
-import com.ww.server.DefaultSocketHandler;
+import com.ww.server.action.Action;
+import com.ww.server.action.BaseAction;
 import com.ww.server.data.Parameters;
 import com.ww.server.data.ResponseMap;
 import com.ww.server.data.ResponseRepresentation;
+import com.ww.server.exception.ActionErrors;
+import com.ww.server.exception.ActionException;
+import com.ww.server.exception.RuntimeWrapperException;
 import com.ww.server.util.JarUtil;
 import java.io.File;
 import java.io.IOException;
@@ -16,8 +20,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import org.eclipse.jetty.util.log.Logger;
-import org.eclipse.jetty.util.log.Slf4jLog;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.eclipse.jetty.websocket.WebSocket;
 
 /**
@@ -26,25 +30,24 @@ import org.eclipse.jetty.websocket.WebSocket;
  */
 public class ActionHandler implements WebSocket.OnTextMessage {
 
-    private static final Logger _log = new Slf4jLog(ActionHandler.class.getName());
-
+    private static final Logger _log = Logger.getLogger(ActionHandler.class.getName());
     protected WebSocket.Connection connection;
 
     @Override
     public void onOpen(WebSocket.Connection connection) {
         this.connection = connection;
-        DefaultSocketHandler.getWebSockets().add(this);
-        if (_log.isDebugEnabled()) {
-            _log.debug("Connection open");
-        }
+        SocketHandler.getWebSockets().add(this);
+
+        _log.fine("Connection open");
     }
 
     @Override
+    @SuppressWarnings({"UseSpecificCatch", "BroadCatchBlock", "TooBroadCatch"})
     public void onMessage(String data) {
-        Parameters parameters = new Parameters();
-        parameters.setParameters(data);
-
         try {
+            Parameters parameters = new Parameters();
+            parameters.setParameters(data);
+
             String packageName = BaseAction.class.getPackage().getName();
             List<Class<? extends BaseAction>> classes = getActionClasses(packageName);
             // searching required action in com.ww.server.action package
@@ -59,7 +62,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                         actionId = cls.newInstance().getActionId();
                     }
                     if (actionId == null || actionId.trim().equals("")) {
-                        _log.warn("Unable to call " + cls.getName());
+                        _log.log(Level.SEVERE, "Unable to call " + cls.getName());
                         continue;
                     }
                     // request url and Action annotation should be in lower case!
@@ -73,24 +76,33 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                         newInstance.preProcessAction();
                         ResponseMap response = newInstance.processAction(parameters);
                         // send representation to client
-                        connection.sendMessage(ResponseRepresentation.getRepresentation(response));
+                        connection.sendMessage(ResponseRepresentation.getRepresentation(response, true));
                         return;
                     }
                     // else continue search
-                } catch (Exception e) {
-                    _log.warn("Unable to instance action", e);
+                } catch (Throwable thr) {
+                    // sending all exception's representation to client
+                    connection.sendMessage(new DefaultExceptionHandler().handleException(thr));
+                    return;
                 }
             }
-            // TODO throw BadRequestException
+
+            throw new ActionException(ActionErrors.BAD_REQUEST);
+        } catch (ActionException e) {
+            try {
+                connection.sendMessage(new DefaultExceptionHandler().handleException(e));
+            } catch (IOException ex) {
+                _log.log(Level.SEVERE, "Can't send message", ex);
+            }
         } catch (Exception e) {
-            _log.warn("Actions not found", e);
+            _log.log(Level.SEVERE, "Actions not found", e);
         }
     }
 
     @Override
     public void onClose(int closeCode, String message) {
         connection.close();
-        DefaultSocketHandler.getWebSockets().remove(this);
+        SocketHandler.getWebSockets().remove(this);
     }
 
     private static List<Class<? extends BaseAction>> getActionClasses(String packageName)
@@ -115,7 +127,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                 JarFile jarFile = JarUtil.getFarFileByFile(source);
                 classes = findActionClassesInJar(jarFile, packageName);
             } catch (IOException ex) {
-                _log.warn("ActionHandler class should be located in not-jar file", ex);
+                _log.log(Level.SEVERE, "ActionHandler class should be located in not-jar file", ex);
             }
         }
         return classes;
@@ -177,13 +189,36 @@ public class ActionHandler implements WebSocket.OnTextMessage {
     private static boolean isActionClass(Class cls) {
         if (cls.isAnnotationPresent(Action.class)) {
             if (Modifier.isAbstract(cls.getModifiers())) {
-                _log.warn("Class " + cls.getName() + " cannot be abstract.");
+                _log.log(Level.SEVERE, "Class {0} cannot be abstract.", cls.getName());
             } else if (!BaseAction.class.isAssignableFrom(cls)) {
-                _log.warn("Class " + cls.getName() + " must be a subtype of the BaseAction class.");
+                _log.log(Level.SEVERE, "Class {0} must be a subtype of the BaseAction class.", cls.getName());
             } else {
                 return true;
             }
         }
         return false;
+    }
+
+    private class DefaultExceptionHandler implements ExceptionHandler<String> {
+
+        public String handleException(Throwable ex) {
+            if (ex instanceof RuntimeWrapperException) {
+                ex = ((RuntimeWrapperException) ex).wrapedException;
+            }
+            if (ex instanceof ActionException) {
+                ActionException ae = (ActionException) ex;
+                if (ae.isServerSideError()) {
+                    _log.log(Level.SEVERE, ex.getMessage(), ex);
+                } else {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(ex.getMessage());
+                    }
+                }
+
+                return ResponseRepresentation.handleError(ae);
+            }
+            return ResponseRepresentation.handleError(ex);
+        }
+
     }
 }

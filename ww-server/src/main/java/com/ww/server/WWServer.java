@@ -14,7 +14,7 @@ public class WWServer {
     public static void main(String[] args) throws Exception {
         Server wwServer = new Server(DEFAULT_WWSERVER_PORT);
 
-        DefaultSocketHandler socketHandler = new DefaultSocketHandler();
+        SocketHandler socketHandler = new SocketHandler();
         socketHandler.setHandler(new DefaultHandler());
         // set listening mode
         wwServer.setHandler(socketHandler);

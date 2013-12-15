@@ -6,9 +6,17 @@ package com.ww.server.enums;
  */
 public enum TagName {
 
+    SUCCESS("success"),
+    ERROR_ID("errorid"),
+    ERROR_MESSAGE("message"),
+    EXCEPTION_FIELDS("exceptionFields"),
+    TRACE("stacktrace"),
+    EXCEPTION("exception"),
+
     USER_LOGIN("login"),
     USER_PASSWORD("pass"),
-    ACTION("action");
+    ACTION("action"),
+    CLASS("class");
 
 
     private String name;
