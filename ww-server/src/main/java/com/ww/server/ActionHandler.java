@@ -8,6 +8,7 @@ import com.ww.server.data.ResponseRepresentation;
 import com.ww.server.exception.ActionErrors;
 import com.ww.server.exception.ActionException;
 import com.ww.server.exception.RuntimeWrapperException;
+import com.ww.server.persistence.InnodbDeadlockRetrier;
 import com.ww.server.util.JarUtil;
 import java.io.File;
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
     @SuppressWarnings({"UseSpecificCatch", "BroadCatchBlock", "TooBroadCatch"})
     public void onMessage(String data) {
         try {
-            Parameters parameters = new Parameters();
+            final Parameters parameters = new Parameters();
             parameters.setParameters(data);
 
             String packageName = BaseAction.class.getPackage().getName();
@@ -62,7 +63,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                         actionId = cls.newInstance().getActionId();
                     }
                     if (actionId == null || actionId.trim().equals("")) {
-                        _log.log(Level.SEVERE, "Unable to call " + cls.getName());
+                        _log.log(Level.SEVERE, "Unable to call {0}", cls.getName());
                         continue;
                     }
                     // request url and Action annotation should be in lower case!
@@ -71,13 +72,33 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                     if (parameters.getAction().equals(actionId)) {
                         // if action class found then instance action
                         Constructor<? extends BaseAction> constructor = cls.getConstructor();
-                        BaseAction newInstance = constructor.newInstance();
-                        newInstance.validate(parameters);
-                        newInstance.preProcessAction();
-                        ResponseMap response = newInstance.processAction(parameters);
-                        // send representation to client
-                        connection.sendMessage(ResponseRepresentation.getRepresentation(response, true));
-                        return;
+                        final BaseAction newInstance = constructor.newInstance();
+                        final ResponseMap[] mapContainer = new ResponseMap[]{null};
+                        InnodbDeadlockRetrier.Command command = new InnodbDeadlockRetrier.Command() {
+
+                            public void execute() throws ActionException {
+                                newInstance.validate(parameters);
+                                newInstance.preProcessAction();
+                                mapContainer[0] = newInstance.processAction(parameters);
+                                newInstance.postProcessAction();
+                            }
+
+                            public void handleError() throws ActionException {
+                                newInstance.postException();
+                            }
+                        };
+                        try {
+                            InnodbDeadlockRetrier.executeCommand(command);
+                            // send representation to client
+                            connection.sendMessage(ResponseRepresentation.getRepresentation(mapContainer[0], true));
+                            return;
+                        } catch (Throwable thr) {
+                            // sending actions' exception's representation to client
+                            connection.sendMessage(new DefaultExceptionHandler().handleException(thr));
+                            return; // should return from method to avoid Bad Request exception
+                        } finally {
+                            newInstance.finalProcessAction();
+                        }
                     }
                     // else continue search
                 } catch (Throwable thr) {

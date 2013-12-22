@@ -1,9 +1,10 @@
 package com.ww.server.service;
 
+import com.ww.server.service.exception.ServiceException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import org.eclipse.jetty.util.log.Logger;
-import org.eclipse.jetty.util.log.Slf4jLog;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -11,7 +12,7 @@ import org.eclipse.jetty.util.log.Slf4jLog;
  */
 public class WWService extends ServiceFactory implements WWFactory {
 
-    private static final Logger _log = new Slf4jLog(WWService.class.getName());
+    private static final Logger _log = Logger.getLogger(WWService.class.getName());
 
     @Override
     public void init() {
@@ -21,13 +22,25 @@ public class WWService extends ServiceFactory implements WWFactory {
                 try {
                     method.invoke(this, new Object[] {});
                 } catch (IllegalAccessException ex) {
-                    _log.warn(ex.getMessage(), ex);
+                    _log.log(Level.WARNING, ex.getMessage(), ex);
                 } catch (IllegalArgumentException ex) {
-                    _log.warn(ex.getMessage(), ex);
+                    _log.log(Level.WARNING, ex.getMessage(), ex);
                 } catch (InvocationTargetException ex) {
-                    _log.warn(ex.getMessage(), ex);
+                    _log.log(Level.WARNING, ex.getMessage(), ex);
                 }
             }
         }
+    }
+
+    public void beginTransaction() throws ServiceException {
+        getTransactionService().beginTransaction();
+    }
+
+    public void commit() throws ServiceException {
+        getTransactionService().commit();
+    }
+
+    public void rollback() throws ServiceException {
+        getTransactionService().rollback();
     }
 }

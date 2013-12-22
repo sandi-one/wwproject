@@ -10,7 +10,8 @@ import java.util.ResourceBundle;
 public enum ActionErrors {
 
     UNKNOWN_SERVER_ERROR(true),
-    BAD_REQUEST;
+    BAD_REQUEST,
+    DEADLOCK_LIMIT_REACHED(true);
 
     private final boolean serverSideError;
 
