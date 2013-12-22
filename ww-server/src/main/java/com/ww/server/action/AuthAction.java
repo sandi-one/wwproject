@@ -5,7 +5,9 @@ import com.ww.server.data.ResponseMap;
 import com.ww.server.enums.TagName;
 import com.ww.server.exception.ActionErrors;
 import com.ww.server.exception.ActionException;
+import com.ww.server.model.Account;
 import com.ww.server.util.ParamUtil;
+import com.ww.server.util.Validator;
 
 /**
  *
@@ -15,13 +17,20 @@ import com.ww.server.util.ParamUtil;
 public class AuthAction extends BaseAction {
 
     private String login;
-    private int pass;
+    private String password;
+    protected Account actionAccount;
 
     @Override
     public void validate(Parameters parameters) throws ActionException {
         super.validate(parameters);
         login = ParamUtil.getNotEmpty(parameters, TagName.USER_LOGIN.toString());
-        pass = ParamUtil.getInt(parameters, TagName.USER_PASSWORD.toString());
+        password = ParamUtil.getNotEmpty(parameters, TagName.USER_PASSWORD.toString());
+    }
+
+    @Override
+    public void preProcessAction() throws ActionException {
+        super.preProcessAction();
+        actionAccount = Validator.validateId(login, null, ActionErrors.BAD_REQUEST);
     }
 
     @Override
