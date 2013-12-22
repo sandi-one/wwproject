@@ -16,4 +16,8 @@ public class Instance {
     public static WWFactory get() {
         return factory.get();
     }
+
+    public static void remove() {
+        factory.remove();
+    }
 }
