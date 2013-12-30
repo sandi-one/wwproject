@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.eclipse.jetty.websocket.WebSocket;
 
 /**
  *
@@ -15,8 +16,7 @@ public class TokenCache {
     private final Lock read;
 
     private volatile Cache<String, Object> cache;
-    //private volatile long maxSize;
-    //private final Cache<String, String> index;
+    private volatile Cache<String, Object> sessionCache;
 
     {
         ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
@@ -24,15 +24,15 @@ public class TokenCache {
     }
 
     public TokenCache(int size) {
-        //index = CacheBuilder.newBuilder().build();
-
         cache = initCache(size);
+        sessionCache = initCache(size);
     }
 
-    public void putToken(Token token) {
+    public void putToken(Token token, WebSocket.Connection connection) {
         read.lock();
         try {
-            put(token.getFullTokenId(), token.clone());
+            cache.put(token.getFullTokenId(), token.clone());
+            sessionCache.put(token.getFullTokenId(), connection);
         } finally {
             read.unlock();
         }
@@ -41,8 +41,17 @@ public class TokenCache {
     public Token getToken(String tokenId) {
         read.lock();
         try {
-            Token token = get(TokenManager.getFullTokenId(tokenId));
+            Token token = (Token) cache.getIfPresent(TokenManager.getFullTokenId(tokenId));
             return (token == null) ? null : token.clone();
+        } finally {
+            read.unlock();
+        }
+    }
+
+    public WebSocket.Connection getSession(String tokenId) {
+        read.lock();
+        try {
+            return (WebSocket.Connection) sessionCache.getIfPresent(TokenManager.getFullTokenId(tokenId));
         } finally {
             read.unlock();
         }
@@ -57,16 +66,18 @@ public class TokenCache {
         }
     }
 
-    protected void put(String key, Object value) {
-        cache.put(key, value);
+    public void deleteSession(String tokenId) {
+        read.lock();
+        try {
+            sessionCache.invalidate(TokenManager.getFullTokenId(tokenId));
+        } finally {
+            read.unlock();
+        }
     }
 
-    protected <T> T get(String key) {
-        return (T) cache.getIfPresent(key);
-    }
-
-    protected void delete(String key) {
+    private void delete(String key) {
         cache.invalidate(key);
+        sessionCache.invalidate(key);
     }
 
     public static long getExpireTime() {

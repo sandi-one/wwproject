@@ -46,7 +46,7 @@ public class InnodbDeadlockRetrier {
                 }
 
                 failedTransactionsCount++;
-                _log.log(Level.SEVERE, "Retrying transaction. Attempt #" + failedTransactionsCount);
+                _log.log(Level.SEVERE, "Retrying transaction. Attempt #{0}", failedTransactionsCount);
                 command.handleError();
                 continue;
             }

@@ -2,17 +2,21 @@ package com.ww.server.action;
 
 import com.ww.server.data.Parameters;
 import com.ww.server.data.ResponseMap;
+import com.ww.server.enums.TagName;
 import com.ww.server.enums.TransactionIsolation;
-import com.ww.server.exception.ActionErrors;
 import com.ww.server.exception.ActionException;
+import com.ww.server.model.Account;
 import com.ww.server.persistence.Persistence;
 import com.ww.server.service.Instance;
 import com.ww.server.service.WWFactory;
+import com.ww.server.service.authentication.AuthenticationService;
 import com.ww.server.service.exception.ServiceException;
+import com.ww.server.util.ParamUtil;
 import java.util.Collections;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.eclipse.jetty.websocket.WebSocket;
 
 /**
  *
@@ -22,8 +26,9 @@ public class BaseAction {
 
     protected static final Logger _log = Logger.getLogger(BaseAction.class.getName());
     protected WWFactory service = Instance.get();
+    protected WebSocket.Connection connection = null;
+    protected String tokenId;
     private TransactionIsolation previousIsolationLevel = null;
-
 
     public BaseAction() {
     }
@@ -34,7 +39,8 @@ public class BaseAction {
     }
 
     public void validate(Parameters parameters) throws ActionException {
-
+        connection = (WebSocket.Connection) ParamUtil.getNotNull(parameters, TagName.CONNECTION.toString());
+        tokenId = (String) parameters.get(TagName.TOKEN.toString());
     }
 
     public void preProcessAction() throws ActionException {

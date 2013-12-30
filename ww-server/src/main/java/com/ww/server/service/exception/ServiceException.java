@@ -10,6 +10,11 @@ public class ServiceException extends ActionException {
 
     ServiceErrors error;
 
+    public ServiceException(ServiceErrors error) {
+        super(new String());
+        this.error = error;
+    }
+
     public ServiceException(ServiceErrors error, String... fields) {
         super(error.formatMessage(fields));
         this.error = error;

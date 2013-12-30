@@ -1,47 +1,39 @@
 package com.ww.server.action;
 
-import com.ww.server.data.Parameters;
-import com.ww.server.data.ResponseMap;
-import com.ww.server.enums.TagName;
 import com.ww.server.exception.ActionErrors;
 import com.ww.server.exception.ActionException;
 import com.ww.server.model.Account;
-import com.ww.server.util.ParamUtil;
-import com.ww.server.util.Validator;
+import com.ww.server.service.authentication.AuthenticationService;
+import com.ww.server.service.exception.ServiceException;
 
 /**
  *
  * @author sandy
  */
-@Action("auth")
 public class AuthAction extends BaseAction {
 
-    private String login;
-    private String password;
     protected Account actionAccount;
 
-    @Override
-    public void validate(Parameters parameters) throws ActionException {
-        super.validate(parameters);
-        login = ParamUtil.getNotEmpty(parameters, TagName.USER_LOGIN.toString());
-        password = ParamUtil.getNotEmpty(parameters, TagName.USER_PASSWORD.toString());
+    protected void tryLogin() throws ActionException {
+        AuthenticationService authService = service.getAuthenticationService();
+        try {
+            try {
+                if (tokenId != null) {
+                    authService.validateToken(tokenId);
+                } else {
+                    throw new ActionException(ActionErrors.NOT_AUTHENTICATED);
+                }
+            } catch (ServiceException ex) {
+                throw new ActionException(ActionErrors.NOT_AUTHENTICATED);
+            }
+        } finally {
+            authService.setCurrentAccount(actionAccount);
+        }
     }
 
     @Override
     public void preProcessAction() throws ActionException {
         super.preProcessAction();
-        actionAccount = Validator.validateId(login, null, ActionErrors.BAD_REQUEST);
-    }
-
-    @Override
-    public ResponseMap processAction(Parameters parameters) throws ActionException {
-        ResponseMap response = new ResponseMap();
-
-        response.put(TagName.USER_LOGIN, "bitch");
-        response.put(TagName.USER_PASSWORD, "fuckin");
-
-        throw new ActionException(ActionErrors.UNKNOWN_SERVER_ERROR);
-
-        //return response;
+        tryLogin();
     }
 }

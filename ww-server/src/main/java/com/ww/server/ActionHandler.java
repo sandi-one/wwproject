@@ -5,10 +5,17 @@ import com.ww.server.action.BaseAction;
 import com.ww.server.data.Parameters;
 import com.ww.server.data.ResponseMap;
 import com.ww.server.data.ResponseRepresentation;
+import com.ww.server.enums.TagName;
 import com.ww.server.exception.ActionErrors;
 import com.ww.server.exception.ActionException;
 import com.ww.server.exception.RuntimeWrapperException;
 import com.ww.server.persistence.InnodbDeadlockRetrier;
+import com.ww.server.service.Factory;
+import com.ww.server.service.Instance;
+import com.ww.server.service.WWFactory;
+import com.ww.server.service.WWService;
+import com.ww.server.service.authentication.AuthenticationService;
+import com.ww.server.service.authentication.TokenManager;
 import com.ww.server.util.JarUtil;
 import java.io.File;
 import java.io.IOException;
@@ -48,6 +55,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
         try {
             final Parameters parameters = new Parameters();
             parameters.setParameters(data);
+            parameters.put(TagName.CONNECTION.toString(), this.connection);
 
             String packageName = BaseAction.class.getPackage().getName();
             List<Class<? extends BaseAction>> classes = getActionClasses(packageName);
@@ -124,6 +132,13 @@ public class ActionHandler implements WebSocket.OnTextMessage {
     public void onClose(int closeCode, String message) {
         connection.close();
         SocketHandler.getWebSockets().remove(this);
+        invalidateSession();
+    }
+
+    private static void invalidateSession() {
+        WWFactory service = Instance.get();
+        AuthenticationService authService = service.getAuthenticationService();
+        authService.invalidateSession(new TokenManager().getCurrentToken().getToken());
     }
 
     private static List<Class<? extends BaseAction>> getActionClasses(String packageName)
