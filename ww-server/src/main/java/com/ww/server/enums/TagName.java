@@ -14,9 +14,11 @@ public enum TagName {
     EXCEPTION("exception"),
 
     USER_LOGIN("login"),
-    USER_PASSWORD("pass"),
+    USER_PASSWORD("password"),
     ACTION("action"),
-    CLASS("class");
+    CLASS("class"),
+    CONNECTION("connection"),
+    TOKEN("token");
 
 
     private String name;

@@ -22,6 +22,7 @@ public class Account implements Serializable {
     private String accountEmail;
     private String accountPassword;
     private Date accountDateOfBirth;
+    private boolean active;
 
     @Id
     @Column(name = "accountid")
@@ -51,7 +52,7 @@ public class Account implements Serializable {
         this.accountEmail = accountEmail;
     }
 
-    @Column(name = "hash")
+    @Column(name = "passhash")
     public String getAccountPassword() {
         return accountPassword;
     }
@@ -70,5 +71,12 @@ public class Account implements Serializable {
         this.accountDateOfBirth = accountDateOfBirth;
     }
 
+    @Column(name = "isactive")
+    public boolean isActive() {
+        return active;
+    }
 
+    public void setActive(boolean active) {
+        this.active = active;
+    }
 }

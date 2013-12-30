@@ -1,5 +1,6 @@
 package com.ww.server.service;
 
+import com.ww.server.service.authentication.AuthenticationService;
 import com.ww.server.service.transaction.TransactionService;
 
 /**
@@ -9,4 +10,5 @@ import com.ww.server.service.transaction.TransactionService;
 public interface Factory {
 
     TransactionService getTransactionService();
+    AuthenticationService getAuthenticationService();
 }

@@ -11,7 +11,12 @@ public enum ActionErrors {
 
     UNKNOWN_SERVER_ERROR(true),
     BAD_REQUEST,
-    DEADLOCK_LIMIT_REACHED(true);
+    DEADLOCK_LIMIT_REACHED(true),
+    PARAM_MUST_NOT_BE_NULL,
+    PARAM_MUST_NOT_BE_EMPTY,
+    INCORRECT_BOOLEAN_VALUE,
+    INCORRECT_INTEGER_VALUE,
+    NOT_AUTHENTICATED;
 
     private final boolean serverSideError;
 
