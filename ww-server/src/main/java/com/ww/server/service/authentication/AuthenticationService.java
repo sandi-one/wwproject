@@ -16,8 +16,8 @@ public class AuthenticationService extends Service {
     private Account currentAccount;
     private TokenManager manager = new TokenManager();
 
-    public Token login (WebSocket.Connection connection, String login, String password)
-            throws ServiceException {
+    public Token login (WebSocket.Connection connection, String login, String password,
+            boolean remember) throws ServiceException {
         Account account;
         // TODO auth password
         try {
@@ -30,17 +30,34 @@ public class AuthenticationService extends Service {
             throw new ServiceException(ServiceErrors.BLOCKED_ACCOUNT);
         }
 
-        Token newToken = manager.createToken(account, connection);
-        manager.validateToken(newToken);
-        currentAccount = account;
+        Token newToken = null;
+        if (remember) {
+            newToken = manager.createToken(account, connection);
+            manager.validateToken(newToken);
+        }
 
+        currentAccount = account;
         return newToken;
     }
 
-    public void logoff(String tokenId, WebSocket.Connection session) {
-        manager.invalidateToken(TokenManager.getToken(tokenId));
+    public Token login (String fullTokenId) throws ServiceException {
+        Token token = TokenManager.getToken(TokenManager.getTokenId(fullTokenId)); // get id
+
+        manager.validateToken(token);
+        currentAccount = token.getAccount();
+
+        return token;
+    }
+
+    public void logoff(Token token) {
+        if (token != null) {
+            manager.invalidateToken(token);
+        }
         currentAccount = null;
-        session.close();
+    }
+
+    public Account getCurrentAccount() {
+        return currentAccount;
     }
 
     public void setCurrentAccount(Account account) {

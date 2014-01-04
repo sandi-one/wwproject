@@ -15,6 +15,7 @@ public enum TagName {
 
     USER_LOGIN("login"),
     USER_PASSWORD("password"),
+    REMEMBER("remember"),
     ACTION("action"),
     CLASS("class"),
     CONNECTION("connection"),

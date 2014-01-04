@@ -29,6 +29,16 @@ public class ParamUtil {
         return value;
     }
 
+    public static String getNotEmptyFromArray(Parameters request, String name) throws ActionException {
+
+        String value = ((String[]) getNotNull(request, name))[0];
+
+        if (value.length() == 0) {
+            throw new ActionException(ActionErrors.PARAM_MUST_NOT_BE_EMPTY, name);
+        }
+        return value;
+    }
+
     public static int getInt(Parameters request, String name) throws ActionException {
         String value = getNotEmpty(request, name);
         int result = -1;
