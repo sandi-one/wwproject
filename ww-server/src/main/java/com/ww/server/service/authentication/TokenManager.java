@@ -47,12 +47,12 @@ public class TokenManager {
 
         if (token.getExpiredDate().before(new Date())) {
             invalidateToken(token);
-            throw new ServiceException(ServiceErrors.INVALID_TOKEN, token.getFullTokenId());
+            throw new ServiceException(ServiceErrors.TOKEN_EXPIRED, token.getFullTokenId());
         }
     }
 
     public void invalidateSession(String tokenId) {
-        cache.deleteToken(tokenId);
+        cache.deleteSession(tokenId);
         currentConnection = null;
     }
 
@@ -76,5 +76,11 @@ public class TokenManager {
         return (token != null && !token.startsWith(Token.TOKEN_PREFIX))
                 ? Token.TOKEN_PREFIX + token
                 : "" + token;
+    }
+
+    public static String getTokenId(String fullTokenId) {
+        return (fullTokenId != null && fullTokenId.startsWith(Token.TOKEN_PREFIX))
+                ? fullTokenId.split(Token.TOKEN_PREFIX)[1]
+                : fullTokenId;
     }
 }

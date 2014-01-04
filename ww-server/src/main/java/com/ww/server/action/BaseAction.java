@@ -9,7 +9,7 @@ import com.ww.server.model.Account;
 import com.ww.server.persistence.Persistence;
 import com.ww.server.service.Instance;
 import com.ww.server.service.WWFactory;
-import com.ww.server.service.authentication.AuthenticationService;
+import com.ww.server.service.authentication.Token;
 import com.ww.server.service.exception.ServiceException;
 import com.ww.server.util.ParamUtil;
 import java.util.Collections;
@@ -26,8 +26,9 @@ public class BaseAction {
 
     protected static final Logger _log = Logger.getLogger(BaseAction.class.getName());
     protected WWFactory service = Instance.get();
+    protected Account actionAccount;
     protected WebSocket.Connection connection = null;
-    protected String tokenId;
+    protected Token token;
     private TransactionIsolation previousIsolationLevel = null;
 
     public BaseAction() {
@@ -40,11 +41,12 @@ public class BaseAction {
 
     public void validate(Parameters parameters) throws ActionException {
         connection = (WebSocket.Connection) ParamUtil.getNotNull(parameters, TagName.CONNECTION.toString());
-        tokenId = (String) parameters.get(TagName.TOKEN.toString());
+        token = (Token) parameters.get(TagName.TOKEN.toString());
     }
 
     public void preProcessAction() throws ActionException {
         beginTransactions();
+        actionAccount = service.getAuthenticationService().getCurrentAccount();
     }
 
     public ResponseMap processAction(Parameters parameters) throws ActionException {

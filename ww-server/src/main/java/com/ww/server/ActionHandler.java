@@ -2,6 +2,7 @@ package com.ww.server;
 
 import com.ww.server.action.Action;
 import com.ww.server.action.BaseAction;
+import com.ww.server.data.Constants;
 import com.ww.server.data.Parameters;
 import com.ww.server.data.ResponseMap;
 import com.ww.server.data.ResponseRepresentation;
@@ -10,13 +11,13 @@ import com.ww.server.exception.ActionErrors;
 import com.ww.server.exception.ActionException;
 import com.ww.server.exception.RuntimeWrapperException;
 import com.ww.server.persistence.InnodbDeadlockRetrier;
-import com.ww.server.service.Factory;
 import com.ww.server.service.Instance;
 import com.ww.server.service.WWFactory;
-import com.ww.server.service.WWService;
 import com.ww.server.service.authentication.AuthenticationService;
+import com.ww.server.service.authentication.Token;
 import com.ww.server.service.authentication.TokenManager;
 import com.ww.server.util.JarUtil;
+import com.ww.server.util.ParamUtil;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -26,10 +27,13 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
 import org.eclipse.jetty.websocket.WebSocket;
 
 /**
@@ -40,22 +44,46 @@ public class ActionHandler implements WebSocket.OnTextMessage {
 
     private static final Logger _log = Logger.getLogger(ActionHandler.class.getName());
     protected WebSocket.Connection connection;
+    protected Token token;
+    private HttpServletRequest request;
+
+    public ActionHandler(HttpServletRequest request) {
+        super();
+        this.request = request;
+    }
 
     @Override
     public void onOpen(WebSocket.Connection connection) {
         this.connection = connection;
-        SocketHandler.getWebSockets().add(this);
 
+        try {
+            authenticate();
+        } catch (ActionException ex) {
+            try {
+                this.connection.sendMessage(new DefaultExceptionHandler().handleException(ex));
+            } catch (IOException io) {
+                _log.log(Level.SEVERE, "Can't send message", io);
+            } finally {
+                this.connection.close(); // close session if auth failed
+            }
+        }
+
+        SocketHandler.getWebSockets().add(this);
         _log.fine("Connection open");
     }
 
     @Override
-    @SuppressWarnings({"UseSpecificCatch", "BroadCatchBlock", "TooBroadCatch"})
     public void onMessage(String data) {
         try {
             final Parameters parameters = new Parameters();
             parameters.setParameters(data);
             parameters.put(TagName.CONNECTION.toString(), this.connection);
+            parameters.put(TagName.TOKEN.toString(), this.token);
+
+            if (parameters.getAction().equals(Constants.LOGOFF_ACTION)) {
+                logoff();
+                return; // to avoid Bad Request exception
+            }
 
             String packageName = BaseAction.class.getPackage().getName();
             List<Class<? extends BaseAction>> classes = getActionClasses(packageName);
@@ -132,13 +160,57 @@ public class ActionHandler implements WebSocket.OnTextMessage {
     public void onClose(int closeCode, String message) {
         connection.close();
         SocketHandler.getWebSockets().remove(this);
-        invalidateSession();
+
+        if (this.token != null) {
+            invalidateSession();
+        }
     }
 
-    private static void invalidateSession() {
+    private void invalidateSession() {
         WWFactory service = Instance.get();
         AuthenticationService authService = service.getAuthenticationService();
-        authService.invalidateSession(new TokenManager().getCurrentToken().getToken());
+        authService.invalidateSession(token.getToken());
+    }
+
+    private void authenticate() throws ActionException {
+
+        Parameters authParams = new Parameters();
+        authParams.putAll(request.getParameterMap());
+
+        String login = ParamUtil.getNotEmptyFromArray(authParams, TagName.USER_LOGIN.toString());
+        String password = ParamUtil.getNotEmptyFromArray(authParams, TagName.USER_PASSWORD.toString());
+        boolean remember = Boolean.parseBoolean(((String[]) authParams.get(TagName.REMEMBER.toString()))[0]);
+        Cookie[] cookies = request.getCookies();
+        String tokenId = null;
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals(Constants.TOKEN_NAME)) {
+                tokenId = cookie.getValue();
+            }
+        }
+
+        WWFactory service = Instance.get();
+        AuthenticationService authService = service.getAuthenticationService();
+        if (tokenId == null || tokenId.isEmpty()) {
+            this.token = authService.login(connection, login, password, remember);
+        } else {
+            this.token = authService.login(tokenId);
+        }
+
+        ResponseMap response = new ResponseMap();
+        if (remember) {
+            response.put(TagName.TOKEN, this.token.getFullTokenId());
+        }
+        try {
+            this.connection.sendMessage(ResponseRepresentation.getRepresentation(response, true));
+        } catch (IOException ex) {
+            _log.log(Level.SEVERE, "sendMessage", ex);
+        }
+    }
+
+    private void logoff() {
+        WWFactory service = Instance.get();
+        service.getAuthenticationService().logoff(token);
+        this.connection.close();
     }
 
     private static List<Class<? extends BaseAction>> getActionClasses(String packageName)

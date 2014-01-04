@@ -16,7 +16,7 @@ public class SocketHandler extends WebSocketHandler {
 
     @Override
     public WebSocket doWebSocketConnect(HttpServletRequest request, String protocol) {
-        return new ActionHandler();
+        return new ActionHandler(request);
     }
 
     public static Set<ActionHandler> getWebSockets() {
