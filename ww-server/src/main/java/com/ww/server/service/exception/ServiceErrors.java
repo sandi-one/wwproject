@@ -17,7 +17,9 @@ public enum ServiceErrors {
     INVALID_LOGIN,
     INVALID_PASSWORD,
     BLOCKED_ACCOUNT,
-    TOKEN_EXPIRED;
+    TOKEN_EXPIRED,
+    SESSION_EXPIRED,
+    CONNECTION_ALREADY_OPENED;
 
     private final boolean serverSideError;
 

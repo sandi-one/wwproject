@@ -1,5 +1,6 @@
 package com.ww.server.service.authentication;
 
+import com.ww.server.cache.TokenCache;
 import com.ww.server.model.Account;
 import com.ww.server.service.exception.ServiceErrors;
 import com.ww.server.service.exception.ServiceException;
@@ -14,28 +15,25 @@ import org.eclipse.jetty.websocket.WebSocket;
 public class TokenManager {
 
     private Token currentToken;
-    private WebSocket.Connection currentConnection;
     private static TokenCache cache = new TokenCache(1000);
 
-    public Token createToken(Account account, WebSocket.Connection connection) {
+    public Token createToken(Account account) {
         Token token = new Token();
         token.setAccount(account);
-        long expiredTime = new Date().getTime() + TokenCache.getExpireTime();
+        long expiredTime = new Date().getTime() + cache.getExpireTime();
         token.setExpiredDate(new Date(expiredTime));
         token.setClientType(null);
         token.setToken(UUID.randomUUID().toString());
 
-        cache.putToken(token, connection);
+        cache.putObject(token.getFullTokenId(), token);
         currentToken = token;
-        currentConnection = connection;
 
         return token;
     }
 
     public void invalidateToken(Token token) {
-        cache.deleteToken(token.getToken());
+        cache.deleteObject(token.getFullTokenId());
         currentToken = null;
-        currentConnection = null;
     }
 
     public void validateToken(Token token) throws ServiceException {
@@ -47,29 +45,16 @@ public class TokenManager {
 
         if (token.getExpiredDate().before(new Date())) {
             invalidateToken(token);
-            throw new ServiceException(ServiceErrors.TOKEN_EXPIRED, token.getFullTokenId());
+            throw new ServiceException(ServiceErrors.TOKEN_EXPIRED);
         }
-    }
-
-    public void invalidateSession(String tokenId) {
-        cache.deleteSession(tokenId);
-        currentConnection = null;
     }
 
     public Token getCurrentToken() {
         return currentToken;
     }
 
-    public WebSocket.Connection getCurrentSession() {
-        return currentConnection;
-    }
-
-    public static Token getToken(String tokenId) {
-        return cache.getToken(tokenId);
-    }
-
-    public static WebSocket.Connection getSession(String tokenId) {
-        return cache.getSession(tokenId);
+    public static Token getToken(String fullTokenId) {
+        return cache.getObject(fullTokenId);
     }
 
     public static String getFullTokenId(String token) {
