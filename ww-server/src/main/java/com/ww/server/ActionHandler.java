@@ -15,7 +15,6 @@ import com.ww.server.service.Instance;
 import com.ww.server.service.WWFactory;
 import com.ww.server.service.authentication.AuthenticationService;
 import com.ww.server.service.authentication.Token;
-import com.ww.server.service.authentication.TokenManager;
 import com.ww.server.util.JarUtil;
 import com.ww.server.util.ParamUtil;
 import java.io.File;
@@ -27,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Level;
@@ -66,10 +64,11 @@ public class ActionHandler implements WebSocket.OnTextMessage {
             } finally {
                 this.connection.close(); // close session if auth failed
             }
+            return;
         }
 
         SocketHandler.getWebSockets().add(this);
-        _log.fine("Connection open");
+        _log.fine("Connection is open");
     }
 
     @Override
@@ -79,11 +78,6 @@ public class ActionHandler implements WebSocket.OnTextMessage {
             parameters.setParameters(data);
             parameters.put(TagName.CONNECTION.toString(), this.connection);
             parameters.put(TagName.TOKEN.toString(), this.token);
-
-            if (parameters.getAction().equals(Constants.LOGOFF_ACTION)) {
-                logoff();
-                return; // to avoid Bad Request exception
-            }
 
             String packageName = BaseAction.class.getPackage().getName();
             List<Class<? extends BaseAction>> classes = getActionClasses(packageName);
@@ -112,6 +106,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                         final ResponseMap[] mapContainer = new ResponseMap[]{null};
                         InnodbDeadlockRetrier.Command command = new InnodbDeadlockRetrier.Command() {
 
+                            @Override
                             public void execute() throws ActionException {
                                 newInstance.validate(parameters);
                                 newInstance.preProcessAction();
@@ -119,6 +114,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
                                 newInstance.postProcessAction();
                             }
 
+                            @Override
                             public void handleError() throws ActionException {
                                 newInstance.postException();
                             }
@@ -158,18 +154,9 @@ public class ActionHandler implements WebSocket.OnTextMessage {
 
     @Override
     public void onClose(int closeCode, String message) {
-        connection.close();
         SocketHandler.getWebSockets().remove(this);
 
-        if (this.token != null) {
-            invalidateSession();
-        }
-    }
-
-    private void invalidateSession() {
-        WWFactory service = Instance.get();
-        AuthenticationService authService = service.getAuthenticationService();
-        authService.invalidateSession(token.getToken());
+        closeConnection();
     }
 
     private void authenticate() throws ActionException {
@@ -180,6 +167,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
         String login = ParamUtil.getNotEmptyFromArray(authParams, TagName.USER_LOGIN.toString());
         String password = ParamUtil.getNotEmptyFromArray(authParams, TagName.USER_PASSWORD.toString());
         boolean remember = Boolean.parseBoolean(((String[]) authParams.get(TagName.REMEMBER.toString()))[0]);
+        boolean forced = Boolean.parseBoolean(((String[]) authParams.get(TagName.FORCED.toString()))[0]);
         Cookie[] cookies = request.getCookies();
         String tokenId = null;
         for (Cookie cookie : cookies) {
@@ -191,9 +179,9 @@ public class ActionHandler implements WebSocket.OnTextMessage {
         WWFactory service = Instance.get();
         AuthenticationService authService = service.getAuthenticationService();
         if (tokenId == null || tokenId.isEmpty()) {
-            this.token = authService.login(connection, login, password, remember);
+            this.token = authService.login(connection, login, password, remember, forced);
         } else {
-            this.token = authService.login(tokenId);
+            this.token = authService.login(connection, tokenId);
         }
 
         ResponseMap response = new ResponseMap();
@@ -207,10 +195,9 @@ public class ActionHandler implements WebSocket.OnTextMessage {
         }
     }
 
-    private void logoff() {
+    private void closeConnection() {
         WWFactory service = Instance.get();
-        service.getAuthenticationService().logoff(token);
-        this.connection.close();
+        service.getAuthenticationService().logoff();
     }
 
     private static List<Class<? extends BaseAction>> getActionClasses(String packageName)
@@ -309,6 +296,7 @@ public class ActionHandler implements WebSocket.OnTextMessage {
 
     private class DefaultExceptionHandler implements ExceptionHandler<String> {
 
+        @Override
         public String handleException(Throwable ex) {
             if (ex instanceof RuntimeWrapperException) {
                 ex = ((RuntimeWrapperException) ex).wrapedException;

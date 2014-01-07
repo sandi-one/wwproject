@@ -5,6 +5,8 @@ import com.ww.server.persistence.AuthenticationPersistence;
 import com.ww.server.service.Service;
 import com.ww.server.service.exception.ServiceErrors;
 import com.ww.server.service.exception.ServiceException;
+import com.ww.server.service.session.Session;
+import com.ww.server.service.session.SessionManager;
 import org.eclipse.jetty.websocket.WebSocket;
 
 /**
@@ -14,10 +16,12 @@ import org.eclipse.jetty.websocket.WebSocket;
 public class AuthenticationService extends Service {
 
     private Account currentAccount;
-    private TokenManager manager = new TokenManager();
+    private Session currentSession;
+    private TokenManager tokenManager = new TokenManager();
+    private SessionManager sessionManager = new SessionManager();
 
     public Token login (WebSocket.Connection connection, String login, String password,
-            boolean remember) throws ServiceException {
+            boolean remember, boolean forced) throws ServiceException {
         Account account;
         // TODO auth password
         try {
@@ -30,28 +34,39 @@ public class AuthenticationService extends Service {
             throw new ServiceException(ServiceErrors.BLOCKED_ACCOUNT);
         }
 
-        Token newToken = null;
-        if (remember) {
-            newToken = manager.createToken(account, connection);
-            manager.validateToken(newToken);
+        Session session = sessionManager.getSession(account.getAccountId());
+
+        if (session != null && !forced) {
+            throw new ServiceException(ServiceErrors.CONNECTION_ALREADY_OPENED);
         }
 
+        Token newToken = null;
+        if (remember) {
+            newToken = tokenManager.createToken(account);
+            tokenManager.validateToken(newToken);
+        }
+
+        currentSession = sessionManager.saveSession(connection, account, forced);
         currentAccount = account;
+
+        sessionManager.validateConnection(connection);
         return newToken;
     }
 
-    public Token login (String fullTokenId) throws ServiceException {
-        Token token = TokenManager.getToken(TokenManager.getTokenId(fullTokenId)); // get id
+    public Token login (WebSocket.Connection connection, String fullTokenId) throws ServiceException {
+        Token token = TokenManager.getToken(fullTokenId);
 
-        manager.validateToken(token);
+        tokenManager.validateToken(token);
+        currentSession = sessionManager.saveSession(connection, token.getAccount(), true);
         currentAccount = token.getAccount();
 
+        sessionManager.validateConnection(connection);
         return token;
     }
 
-    public void logoff(Token token) {
-        if (token != null) {
-            manager.invalidateToken(token);
+    public void logoff() {
+        if (currentSession != null) {
+            sessionManager.invalidateSession(currentSession);
         }
         currentAccount = null;
     }
@@ -64,11 +79,15 @@ public class AuthenticationService extends Service {
         currentAccount = account;
     }
 
-    public void validateToken(String tokenId) throws ServiceException {
-        manager.validateToken(TokenManager.getToken(tokenId));
+    public Session getCurrentSession() {
+        return currentSession;
     }
 
-    public void invalidateSession(String tokenId) {
-        manager.invalidateSession(tokenId);
+    public void setCurrentSession(Session currentSession) {
+        this.currentSession = currentSession;
+    }
+
+    public void validateToken(String tokenId) throws ServiceException {
+        tokenManager.validateToken(TokenManager.getToken(tokenId));
     }
 }
