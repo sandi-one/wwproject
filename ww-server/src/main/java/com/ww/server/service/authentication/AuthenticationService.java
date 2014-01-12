@@ -7,6 +7,8 @@ import com.ww.server.service.exception.ServiceErrors;
 import com.ww.server.service.exception.ServiceException;
 import com.ww.server.service.session.Session;
 import com.ww.server.service.session.SessionManager;
+import com.ww.server.util.SHA1;
+import java.security.NoSuchAlgorithmException;
 import org.eclipse.jetty.websocket.WebSocket;
 
 /**
@@ -20,15 +22,16 @@ public class AuthenticationService extends Service {
     private TokenManager tokenManager = new TokenManager();
     private SessionManager sessionManager = new SessionManager();
 
-    public Token login (WebSocket.Connection connection, String login, String password,
+    public Token login(WebSocket.Connection connection, String login, String password,
             boolean remember, boolean forced) throws ServiceException {
         Account account;
-        // TODO auth password
         try {
             account = AuthenticationPersistence.fetchAccountByName(login);
         } catch (Exception ex) {
             throw new ServiceException(ServiceErrors.INVALID_LOGIN, login);
         }
+
+        authenticatePassword(account, password);
 
         if (!account.isActive()) {
             throw new ServiceException(ServiceErrors.BLOCKED_ACCOUNT);
@@ -53,7 +56,7 @@ public class AuthenticationService extends Service {
         return newToken;
     }
 
-    public Token login (WebSocket.Connection connection, String fullTokenId) throws ServiceException {
+    public Token login(WebSocket.Connection connection, String fullTokenId) throws ServiceException {
         Token token = TokenManager.getToken(fullTokenId);
 
         tokenManager.validateToken(token);
@@ -89,5 +92,12 @@ public class AuthenticationService extends Service {
 
     public void validateToken(String tokenId) throws ServiceException {
         tokenManager.validateToken(TokenManager.getToken(tokenId));
+    }
+
+    public void authenticatePassword(Account account, String password) throws ServiceException {
+        String hash = SHA1.sha1(password); // TODO implement more secure algorithm
+        if (!hash.equals(account.getAccountPassword())) {
+            throw new ServiceException(ServiceErrors.INVALID_PASSWORD);
+        }
     }
 }
